@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Add Documents — John Paul</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1f2328;--muted:#646b73;--line:#e3dfd6;--accent:#2f5d8a;--accent-ink:#fff;--ok:#2e7d4f;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#15181c;--card:#1e2227;--ink:#e8eaed;--muted:#9aa3ad;--line:#2d333a;--accent:#7fb0e0;--accent-ink:#0d1b2a;--ok:#7fd1a0;--bad:#f2a19b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:24px;margin:4px 0}h2{font-size:17px;margin:0 0 6px}.muted{color:var(--muted)}
+.btn{border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:600 16px inherit;font-family:inherit;padding:12px 16px;cursor:pointer}
+.btn:disabled{opacity:.5}input,select{font:16px inherit;font-family:inherit;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;margin:6px 0 10px}
+progress{width:100%;height:14px}#log{font:13px/1.5 ui-monospace,Menlo,monospace;max-height:280px;overflow:auto;white-space:pre-wrap}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.hide{display:none}
+</style>
+</head>
+<body><div class="wrap">
+<h1>Add documents</h1>
+<p class="muted">For Jonathon and Melissa. New files appear in the John Paul app right away. <a href="./">Back to the app</a></p>
+
+<div class="card" id="auth">
+  <h2>Sign in</h2>
+  <input id="email" type="email" placeholder="email">
+  <button class="btn" id="send">Email me a code</button>
+  <div id="codeBox" class="hide"><input id="code" inputmode="numeric" placeholder="6-digit code"><button class="btn" id="verify">Sign in</button></div>
+  <p id="amsg" class="muted"></p>
+</div>
+
+<div id="tools" class="hide">
+  <div class="card">
+    <h2>Add one or more documents</h2>
+    <p class="muted">Pick the files, choose where they belong, then upload.</p>
+    <input id="files" type="file" multiple accept="application/pdf,image/*,.xlsx,.docx">
+    <select id="cat">
+      <option>Court Orders &amp; Letters</option><option>Proof of Guardianship</option><option>Annual Reports</option><option>Trusts &amp; Trust Taxes</option><option>Income &amp; Taxes</option><option>Social Security &amp; Medicare</option><option>Medical &amp; Dental</option><option>Marbridge &amp; Care</option><option>Visits &amp; Travel</option>
+    </select>
+    <label><input type="checkbox" id="key" style="width:auto"> Mark as an important document</label>
+    <button class="btn" id="upFiles">Upload files</button>
+  </div>
+  <div class="card">
+    <h2>Upload the whole folder</h2>
+    <p class="muted">Choose the <b>John Paul Gough - Guardianship</b> folder (Documents › Personal). Subfolders 00–08 set the category. Files already uploaded are replaced, so this is safe to re-run.</p>
+    <input id="folder" type="file" webkitdirectory multiple>
+    <button class="btn" id="upFolder">Upload folder</button>
+  </div>
+  <div class="card">
+    <progress id="prog" value="0" max="1"></progress>
+    <div id="log" class="muted">Ready.</div>
+  </div>
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const sb=supabase.createClient('https://ndrwzvhebakozjlfnvax.supabase.co','sb_publishable_jWnI0f_lvzFq9-vgk56B5Q_oU4rOZjU');
+const BUCKET='guardianship',$=id=>document.getElementById(id);
+const keyFor=p=>p.normalize('NFKD').replace(/[^A-Za-z0-9._\/-]+/g,'_');
+const FOLDERS={"00":"Proof of Guardianship","01":"Court Orders & Letters","02":"Annual Reports","03":"Trusts & Trust Taxes","04":"Income & Taxes","05":"Social Security & Medicare","06":"Medical & Dental","07":"Marbridge & Care","08":"Visits & Travel"};
+const FOLDER_OF=Object.fromEntries(Object.entries(FOLDERS).map(([n,c])=>[c,n+' '+c]));
+const log=(m,c='')=>{const d=document.createElement('div');d.className=c;d.textContent=m;$('log').appendChild(d);$('log').scrollTop=1e9};
+async function gate(){const {data:{session}}=await sb.auth.getSession();$('auth').classList.toggle('hide',!!session);$('tools').classList.toggle('hide',!session)}
+$('send').onclick=async()=>{const {error}=await sb.auth.signInWithOtp({email:$('email').value.trim()});$('amsg').textContent=error?error.message:'Code sent — check your email.';if(!error)$('codeBox').classList.remove('hide')};
+$('verify').onclick=async()=>{const {error}=await sb.auth.verifyOtp({email:$('email').value.trim(),token:$('code').value.trim(),type:'email'});if(error)$('amsg').textContent=error.message;else gate()};
+function meta(file,path,category,isKey){
+  const base=file.name.replace(/\.[^.]+$/,'');
+  const title=base.replace(/^\d{4}-\d{2}-\d{2}\s+/,'').trim();
+  const sd=new Date(file.lastModified);const scan=new Date(sd.getTime()-sd.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+  const yrs=title.match(/20[12]\d/g);
+  const row={storage_path:path,file_name:file.name,title,category,scan_date:scan,doc_year:yrs?+yrs[yrs.length-1]:+scan.slice(0,4),size_bytes:file.size};
+  if(isKey)row.is_key=true;return row;
+}
+async function run(items){
+  $('log').innerHTML='';$('prog').max=items.length;$('prog').value=0;let ok=0,bad=0;
+  const queue=[...items];
+  async function worker(){while(queue.length){const it=queue.shift();
+    try{
+      const {error:e1}=await sb.storage.from(BUCKET).upload(keyFor(it.path),it.file,{upsert:true,contentType:it.file.type||undefined});
+      if(e1)throw e1;
+      const {error:e2}=await sb.from('guardian_docs').upsert(meta(it.file,it.path,it.category,it.isKey),{onConflict:'storage_path'});
+      if(e2)throw e2;ok++;log('✓ '+it.path,'ok');
+    }catch(e){bad++;log('✗ '+it.path+' — '+(e.message||e),'bad')}
+    $('prog').value++;}}
+  await Promise.all([worker(),worker(),worker()]);
+  log(`Done: ${ok} uploaded${bad?', '+bad+' failed':''}.`,bad?'bad':'ok');
+}
+$('upFiles').onclick=()=>{const c=$('cat').value,k=$('key').checked;const fs=[...$('files').files];if(!fs.length)return;
+  run(fs.map(f=>({file:f,path:FOLDER_OF[c]+'/'+f.name,category:c,isKey:k})))};
+$('upFolder').onclick=()=>{const fs=[...$('folder').files].filter(f=>!f.name.startsWith('.'));const items=[];
+  for(const f of fs){const parts=f.webkitRelativePath.split('/');const rel=parts.slice(1).join('/');const n=(parts[1]||'').slice(0,2);const c=FOLDERS[n];
+    if(!c||parts.length<3){log('skipped (not in a 00–08 folder): '+rel);continue}items.push({file:f,path:rel,category:c,isKey:false})}
+  run(items)};
+gate();
+</script>
+</body></html>
