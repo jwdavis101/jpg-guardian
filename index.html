@@ -129,8 +129,8 @@ $('send').onclick=async()=>{
   $('send').disabled=true;$('loginMsg').textContent='Sending…';
   const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});
   $('send').disabled=false;
-  if(error){$('loginMsg').textContent='Could not send: '+error.message;return}
-  $('loginMsg').textContent='';$('sentTo').textContent=email;$('step-email').classList.add('hide');$('step-code').classList.remove('hide');$('code').focus();
+  if(error&&!/rate limit/i.test(error.message)){$('loginMsg').textContent='Could not send: '+error.message;return}
+  $('loginMsg').textContent=error?'Too many codes requested recently. Use the code from your most recent email, or try again in an hour.':'';$('sentTo').textContent=email;$('step-email').classList.add('hide');$('step-code').classList.remove('hide');$('code').focus();
 };
 $('verify').onclick=async()=>{
   const email=$('email').value.trim(),token=$('code').value.trim();
