@@ -61,7 +61,7 @@ const FOLDERS={"00":"Proof of Guardianship","01":"Court Orders & Letters","02":"
 const FOLDER_OF=Object.fromEntries(Object.entries(FOLDERS).map(([n,c])=>[c,n+' '+c]));
 const log=(m,c='')=>{const d=document.createElement('div');d.className=c;d.textContent=m;$('log').appendChild(d);$('log').scrollTop=1e9};
 async function gate(){const {data:{session}}=await sb.auth.getSession();$('auth').classList.toggle('hide',!!session);$('tools').classList.toggle('hide',!session)}
-$('send').onclick=async()=>{if($('send').disabled)return;$('send').disabled=true;$('amsg').textContent='Sending…';const {error}=await sb.auth.signInWithOtp({email:$('email').value.trim()});setTimeout(()=>$('send').disabled=false,60000);$('amsg').textContent=error?error.message:'Code sent — check your email.';if(!error)$('codeBox').classList.remove('hide')};
+$('send').onclick=async()=>{if($('send').disabled)return;$('send').disabled=true;$('amsg').textContent='Sending…';const {error}=await sb.auth.signInWithOtp({email:$('email').value.trim()});setTimeout(()=>$('send').disabled=false,60000);$('amsg').textContent=error?(/rate limit/i.test(error.message)?'Too many codes requested — use the code from your most recent email below, or try again in an hour.':error.message):'Code sent — check your email.';$('codeBox').classList.remove('hide')};
 $('verify').onclick=async()=>{const {error}=await sb.auth.verifyOtp({email:$('email').value.trim(),token:$('code').value.trim(),type:'email'});if(error)$('amsg').textContent=error.message;else gate()};
 function meta(file,path,category,isKey){
   const base=file.name.replace(/\.[^.]+$/,'');
