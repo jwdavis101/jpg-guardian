@@ -42,7 +42,7 @@ progress{width:100%;height:14px}#log{font:13px/1.5 ui-monospace,Menlo,monospace;
   </div>
   <div class="card">
     <h2>Upload the whole folder</h2>
-    <p class="muted">Choose the <b>John Paul Gough - Guardianship</b> folder (Documents › Personal). Subfolders 00–08 set the category. Files already uploaded are replaced, so this is safe to re-run.</p>
+    <p class="muted">Choose the <b>John Paul Gough - Guardianship</b> folder (Documents › Personal). Only new or changed files are uploaded, so run this any time after new scans are filed.</p>
     <input id="folder" type="file" webkitdirectory multiple>
     <button class="btn" id="upFolder">Upload folder</button>
   </div>
@@ -72,7 +72,7 @@ function meta(file,path,category,isKey){
   if(isKey)row.is_key=true;return row;
 }
 async function run(items){
-  $('log').innerHTML='';$('prog').max=items.length;$('prog').value=0;let ok=0,bad=0;
+  $('prog').max=items.length;$('prog').value=0;let ok=0,bad=0;
   const queue=[...items];
   async function worker(){while(queue.length){const it=queue.shift();
     try{
@@ -87,10 +87,12 @@ async function run(items){
 }
 $('upFiles').onclick=()=>{const c=$('cat').value,k=$('key').checked;const fs=[...$('files').files];if(!fs.length)return;
   run(fs.map(f=>({file:f,path:FOLDER_OF[c]+'/'+f.name,category:c,isKey:k})))};
-$('upFolder').onclick=()=>{const fs=[...$('folder').files].filter(f=>!f.name.startsWith('.'));const items=[];
+$('upFolder').onclick=async()=>{const fs=[...$('folder').files].filter(f=>!f.name.startsWith('.'));const items=[];
+  const {data:have}=await sb.from('guardian_docs').select('storage_path,size_bytes');const known=Object.fromEntries((have||[]).map(r=>[r.storage_path,r.size_bytes]));let same=0;
   for(const f of fs){const parts=f.webkitRelativePath.split('/');const rel=parts.slice(1).join('/');const n=(parts[1]||'').slice(0,2);const c=FOLDERS[n];
-    if(!c||parts.length<3){log('skipped (not in a 00–08 folder): '+rel);continue}items.push({file:f,path:rel,category:c,isKey:false})}
-  run(items)};
+    if(!c||parts.length<3){continue}if(known[rel]===f.size){same++;continue}items.push({file:f,path:rel,category:c,isKey:false})}
+  if(!items.length){$('log').innerHTML='';log(`Nothing new — all ${same} files are already uploaded.`,'ok');return}
+  log(`${items.length} new or changed file(s) to upload (${same} already up to date)…`);await run(items)};
 gate();
 </script>
 </body></html>
